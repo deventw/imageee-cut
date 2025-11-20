@@ -135,6 +135,7 @@ const commonRatios = [
   { value: '1:1', label: '1:1', width: 1, height: 1 },
   { value: '16:9', label: '16:9', width: 16, height: 9 },
   { value: '9:16', label: '9:16', width: 9, height: 16 },
+  { value: '9:15', label: '9:15', width: 9, height: 15 },
   { value: '4:3', label: '4:3', width: 4, height: 3 },
   { value: '3:4', label: '3:4', width: 3, height: 4 },
 ]
