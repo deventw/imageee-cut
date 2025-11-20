@@ -33,7 +33,7 @@ const containerRef = ref<HTMLDivElement>()
 const canvasRef = ref<HTMLCanvasElement>()
 
 const { imageUrl, imageElement, hasImage, createImageElement } = useImageEditor()
-const { cropRect, isDrawing, startCrop, updateCrop, finishCrop, shadowCrops } = useCrop()
+const { cropRect, isDrawing, startCrop, updateCrop, finishCrop, shadowCrops, getResizeHandle } = useCrop()
 const { rotation } = useRotation()
 const { $t } = useI18n()
 
@@ -607,12 +607,29 @@ function handleMouseMove(e: MouseEvent) {
     updateCrop(coords.x, coords.y, displayImage.width, displayImage.height)
     scheduleDraw()
   } else if (cropRect.value) {
-    // When not drawing, show move cursor if hovering over crop
-    const rect = cropRect.value
-    const isInside = coords.x >= rect.x && coords.x <= rect.x + rect.width &&
-                     coords.y >= rect.y && coords.y <= rect.y + rect.height
-    if (canvasRef.value) {
-      canvasRef.value.style.cursor = isInside ? 'move' : 'crosshair'
+    // Check for resize handles first
+    const handle = getResizeHandle(coords.x, coords.y, cropRect.value)
+    if (handle && canvasRef.value) {
+      // Set appropriate resize cursor based on handle
+      const cursorMap: Record<string, string> = {
+        'nw': 'nw-resize',
+        'ne': 'ne-resize',
+        'sw': 'sw-resize',
+        'se': 'se-resize',
+        'n': 'n-resize',
+        's': 's-resize',
+        'e': 'e-resize',
+        'w': 'w-resize'
+      }
+      canvasRef.value.style.cursor = cursorMap[handle] || 'move'
+    } else {
+      // When not drawing, show move cursor if hovering over crop
+      const rect = cropRect.value
+      const isInside = coords.x >= rect.x && coords.x <= rect.x + rect.width &&
+                       coords.y >= rect.y && coords.y <= rect.y + rect.height
+      if (canvasRef.value) {
+        canvasRef.value.style.cursor = isInside ? 'move' : 'crosshair'
+      }
     }
   } else {
     // No crop, show crosshair
