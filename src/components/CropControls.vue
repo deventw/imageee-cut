@@ -89,6 +89,148 @@
       />
     </div>
     
+    <!-- Fine-tune Controls -->
+    <div class="control-group finetune-group" v-if="hasCrop">
+      <label class="finetune-label">
+        <span>{{ $t('fine_tune') || 'Fine-tune Crop' }}</span>
+        <span class="finetune-hint">({{ $t('fine_tune_hint') || 'Adjust crop position and size precisely' }})</span>
+      </label>
+      
+      <div class="finetune-grid">
+        <div class="finetune-item">
+          <label class="finetune-item-label">X</label>
+          <input 
+            type="number" 
+            v-model.number="fineTuneX" 
+            @input="applyFineTune"
+            :disabled="!hasCrop"
+            class="finetune-input"
+            step="1"
+            :min="0"
+            :max="maxDimensions.maxX"
+          />
+        </div>
+        
+        <div class="finetune-item">
+          <label class="finetune-item-label">Y</label>
+          <input 
+            type="number" 
+            v-model.number="fineTuneY" 
+            @input="applyFineTune"
+            :disabled="!hasCrop"
+            class="finetune-input"
+            step="1"
+            :min="0"
+            :max="maxDimensions.maxY"
+          />
+        </div>
+        
+        <div class="finetune-item">
+          <label class="finetune-item-label">{{ $t('width') || 'W' }}</label>
+          <input 
+            type="number" 
+            v-model.number="fineTuneWidth" 
+            @input="applyFineTune"
+            :disabled="!hasCrop"
+            class="finetune-input"
+            step="1"
+            :min="1"
+            :max="maxDimensions.maxWidth"
+          />
+        </div>
+        
+        <div class="finetune-item">
+          <label class="finetune-item-label">{{ $t('height') || 'H' }}</label>
+          <input 
+            type="number" 
+            v-model.number="fineTuneHeight" 
+            @input="applyFineTune"
+            :disabled="!hasCrop"
+            class="finetune-input"
+            step="1"
+            :min="1"
+            :max="maxDimensions.maxHeight"
+          />
+        </div>
+      </div>
+      
+      <!-- Arrow key controls hint -->
+      <div class="arrow-controls-hint">
+        <div class="arrow-controls-row">
+          <button 
+            @click="adjustCrop('x', -1)" 
+            :disabled="!hasCrop"
+            class="arrow-btn"
+            aria-label="Move left"
+          >
+            ←
+          </button>
+          <div class="arrow-controls-group">
+            <button 
+              @click="adjustCrop('y', -1)" 
+              :disabled="!hasCrop"
+              class="arrow-btn"
+              aria-label="Move up"
+            >
+              ↑
+            </button>
+            <button 
+              @click="adjustCrop('y', 1)" 
+              :disabled="!hasCrop"
+              class="arrow-btn"
+              aria-label="Move down"
+            >
+              ↓
+            </button>
+          </div>
+          <button 
+            @click="adjustCrop('x', 1)" 
+            :disabled="!hasCrop"
+            class="arrow-btn"
+            aria-label="Move right"
+          >
+            →
+          </button>
+        </div>
+        <div class="arrow-controls-row">
+          <button 
+            @click="adjustCrop('width', -1)" 
+            :disabled="!hasCrop"
+            class="arrow-btn"
+            aria-label="Decrease width"
+          >
+            ← W
+          </button>
+          <button 
+            @click="adjustCrop('width', 1)" 
+            :disabled="!hasCrop"
+            class="arrow-btn"
+            aria-label="Increase width"
+          >
+            W →
+          </button>
+        </div>
+        <div class="arrow-controls-row">
+          <button 
+            @click="adjustCrop('height', -1)" 
+            :disabled="!hasCrop"
+            class="arrow-btn"
+            aria-label="Decrease height"
+          >
+            ↑ H
+          </button>
+          <button 
+            @click="adjustCrop('height', 1)" 
+            :disabled="!hasCrop"
+            class="arrow-btn"
+            aria-label="Increase height"
+          >
+            H ↓
+          </button>
+        </div>
+      </div>
+    </div>
+    
     <div class="control-group">
       <button @click="clearCrop" :disabled="!hasCrop" class="btn-clear">
         {{ $t('clear_crop') }}
@@ -104,18 +246,19 @@ import { useImageEditor } from '@/composables/useImageEditor'
 import { useI18n } from '@/composables/useI18n'
 import { useEditorStore } from '@/stores/editorStore'
 
-const { hasImage } = useImageEditor()
+const { hasImage, imageElement } = useImageEditor()
 const { 
   lockAspectRatio, 
   shadowCount: shadowCountRef, 
-  hasCrop, 
+  hasCrop,
+  cropRect,
   clearCrop,
   setAspectRatio,
   setFreeAspectRatio,
   applyRatioToSelection,
-  aspectRatio
+  aspectRatio,
+  updateCropRect
 } = useCrop()
-const { imageElement } = useImageEditor()
 const store = useEditorStore()
 
 // Make shadowCount writable
@@ -129,6 +272,141 @@ const { $t } = useI18n()
 const selectedAspectRatio = ref<string>('free')
 const customWidth = ref<number>(1)
 const customHeight = ref<number>(1)
+
+// Fine-tune values
+const fineTuneX = ref<number>(0)
+const fineTuneY = ref<number>(0)
+const fineTuneWidth = ref<number>(0)
+const fineTuneHeight = ref<number>(0)
+
+// Calculate max dimensions based on aspect ratio and image bounds
+const maxDimensions = computed(() => {
+  if (!imageElement.value) {
+    return { maxX: 0, maxY: 0, maxWidth: 0, maxHeight: 0 }
+  }
+  
+  const imgWidth = imageElement.value.width
+  const imgHeight = imageElement.value.height
+  
+  let maxWidth = imgWidth
+  let maxHeight = imgHeight
+  
+  if (lockAspectRatio.value && aspectRatio.value) {
+    const targetRatio = aspectRatio.value.width / aspectRatio.value.height
+    // Calculate maximum possible dimensions while maintaining aspect ratio
+    const maxWidthByHeight = imgHeight * targetRatio
+    const maxHeightByWidth = imgWidth / targetRatio
+    maxWidth = Math.min(imgWidth, maxWidthByHeight)
+    maxHeight = Math.min(imgHeight, maxHeightByWidth)
+  }
+  
+  return {
+    maxX: imgWidth - 1,
+    maxY: imgHeight - 1,
+    maxWidth: maxWidth,
+    maxHeight: maxHeight
+  }
+})
+
+// Sync fine-tune values with crop rect
+watch(cropRect, (rect) => {
+  if (rect) {
+    fineTuneX.value = Math.round(rect.x)
+    fineTuneY.value = Math.round(rect.y)
+    fineTuneWidth.value = Math.round(rect.width)
+    fineTuneHeight.value = Math.round(rect.height)
+  }
+}, { immediate: true })
+
+function applyFineTune() {
+  if (!cropRect.value || !imageElement.value) return
+  
+  // Clamp values to max dimensions
+  const max = maxDimensions.value
+  const clampedX = Math.max(0, Math.min(fineTuneX.value, max.maxX))
+  const clampedY = Math.max(0, Math.min(fineTuneY.value, max.maxY))
+  let clampedWidth = Math.max(1, Math.min(fineTuneWidth.value, max.maxWidth))
+  let clampedHeight = Math.max(1, Math.min(fineTuneHeight.value, max.maxHeight))
+  
+  // If aspect ratio is locked, adjust dimensions to maintain ratio
+  if (lockAspectRatio.value && aspectRatio.value) {
+    const targetRatio = aspectRatio.value.width / aspectRatio.value.height
+    const currentRatio = clampedWidth / clampedHeight
+    
+    if (Math.abs(currentRatio - targetRatio) > 0.001) {
+      // Adjust to match aspect ratio, preferring the dimension that fits
+      if (clampedWidth / targetRatio <= max.maxHeight) {
+        clampedHeight = clampedWidth / targetRatio
+      } else {
+        clampedWidth = clampedHeight * targetRatio
+      }
+    }
+    
+    // Ensure we don't exceed max dimensions
+    if (clampedWidth > max.maxWidth) {
+      clampedWidth = max.maxWidth
+      clampedHeight = clampedWidth / targetRatio
+    }
+    if (clampedHeight > max.maxHeight) {
+      clampedHeight = max.maxHeight
+      clampedWidth = clampedHeight * targetRatio
+    }
+  }
+  
+  // Ensure crop doesn't exceed image bounds
+  if (clampedX + clampedWidth > imageElement.value.width) {
+    clampedWidth = imageElement.value.width - clampedX
+    if (lockAspectRatio.value && aspectRatio.value) {
+      clampedHeight = clampedWidth / (aspectRatio.value.width / aspectRatio.value.height)
+    }
+  }
+  if (clampedY + clampedHeight > imageElement.value.height) {
+    clampedHeight = imageElement.value.height - clampedY
+    if (lockAspectRatio.value && aspectRatio.value) {
+      clampedWidth = clampedHeight * (aspectRatio.value.width / aspectRatio.value.height)
+    }
+  }
+  
+  const newRect = {
+    x: clampedX,
+    y: clampedY,
+    width: clampedWidth,
+    height: clampedHeight
+  }
+  
+  updateCropRect(newRect, imageElement.value.width, imageElement.value.height)
+}
+
+function adjustCrop(property: 'x' | 'y' | 'width' | 'height', delta: number) {
+  if (!cropRect.value || !imageElement.value) return
+  
+  const step = 1 // Adjust step size as needed
+  const adjustment = delta * step
+  const max = maxDimensions.value
+  
+  let newRect = { ...cropRect.value }
+  
+  switch (property) {
+    case 'x':
+      fineTuneX.value = Math.max(0, Math.min(fineTuneX.value + adjustment, max.maxX))
+      newRect.x = fineTuneX.value
+      break
+    case 'y':
+      fineTuneY.value = Math.max(0, Math.min(fineTuneY.value + adjustment, max.maxY))
+      newRect.y = fineTuneY.value
+      break
+    case 'width':
+      fineTuneWidth.value = Math.max(1, Math.min(fineTuneWidth.value + adjustment, max.maxWidth))
+      newRect.width = fineTuneWidth.value
+      break
+    case 'height':
+      fineTuneHeight.value = Math.max(1, Math.min(fineTuneHeight.value + adjustment, max.maxHeight))
+      newRect.height = fineTuneHeight.value
+      break
+  }
+  
+  updateCropRect(newRect, imageElement.value.width, imageElement.value.height)
+}
 
 // Common aspect ratios
 const commonRatios = [
@@ -408,9 +686,132 @@ watch(lockAspectRatio, (val) => {
   border-color: #6b5638;
 }
 
+.finetune-group {
+  border-top: 1px solid #e8dfd4;
+  padding-top: 1rem;
+  margin-top: 1rem;
+}
+
+.finetune-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.finetune-hint {
+  font-size: 0.8rem;
+  font-weight: normal;
+  color: #6b5d4f;
+  font-style: italic;
+}
+
+.finetune-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.finetune-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.finetune-item-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #6b5d4f;
+}
+
+.finetune-input {
+  width: 100%;
+  padding: 0.875rem;
+  border: 1px solid #d4c4b0;
+  border-radius: 6px;
+  background: #faf8f4;
+  font-size: 1rem;
+  min-height: 44px;
+  touch-action: manipulation;
+  color: #3c3c3c;
+  text-align: center;
+}
+
+.finetune-input:focus {
+  outline: 2px solid #a67c52;
+  outline-offset: 2px;
+  border-color: #a67c52;
+}
+
+.finetune-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.arrow-controls-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e8dfd4;
+}
+
+.arrow-controls-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.arrow-controls-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.arrow-btn {
+  min-width: 50px;
+  min-height: 44px;
+  padding: 0.75rem 1rem;
+  border: 1px solid #d4c4b0;
+  border-radius: 6px;
+  background: #faf8f4;
+  cursor: pointer;
+  font-size: 1.1rem;
+  font-weight: 600;
+  transition: all 0.2s;
+  touch-action: manipulation;
+  color: #3c3c3c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.arrow-btn:active:not(:disabled) {
+  background: #a67c52;
+  color: #faf8f4;
+  border-color: #8b6f47;
+}
+
+.arrow-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 @media (min-width: 768px) {
   .ratio-buttons {
     grid-template-columns: repeat(5, 1fr);
+  }
+  
+  .finetune-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  
+  .arrow-btn {
+    min-width: 60px;
+    font-size: 1.2rem;
   }
 }
 </style>

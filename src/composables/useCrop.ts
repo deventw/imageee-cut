@@ -27,7 +27,13 @@ export function useCrop() {
   let resizeStartRect: CropRect | null = null
   
   // Helper function to clamp crop rect to image bounds
-  function clampCropToBounds(rect: CropRect, imageWidth: number, imageHeight: number): CropRect {
+  // If aspectRatio is provided, maintains the ratio while clamping
+  function clampCropToBounds(
+    rect: CropRect, 
+    imageWidth: number, 
+    imageHeight: number, 
+    aspectRatio?: { width: number; height: number } | null
+  ): CropRect {
     let { x, y, width, height } = rect
     
     // Ensure width and height are positive
@@ -40,21 +46,95 @@ export function useCrop() {
       height = Math.abs(height)
     }
     
+    // If aspect ratio is locked, calculate max dimensions based on ratio and image bounds
+    if (aspectRatio) {
+      const targetRatio = aspectRatio.width / aspectRatio.height
+      
+      // Calculate maximum possible width and height while maintaining aspect ratio
+      const maxWidthByHeight = imageHeight * targetRatio
+      const maxHeightByWidth = imageWidth / targetRatio
+      
+      const maxWidth = Math.min(imageWidth, maxWidthByHeight)
+      const maxHeight = Math.min(imageHeight, maxHeightByWidth)
+      
+      // Enforce max size while maintaining aspect ratio
+      if (width > maxWidth) {
+        width = maxWidth
+        height = width / targetRatio
+      }
+      if (height > maxHeight) {
+        height = maxHeight
+        width = height * targetRatio
+      }
+      
+      // Ensure aspect ratio is maintained
+      const currentRatio = width / height
+      if (Math.abs(currentRatio - targetRatio) > 0.001) {
+        // Adjust to match aspect ratio, preferring the dimension that fits
+        if (width / targetRatio <= imageHeight) {
+          height = width / targetRatio
+        } else {
+          width = height * targetRatio
+        }
+      }
+    }
+    
     // Clamp position to keep crop within image bounds
     x = Math.max(0, Math.min(x, imageWidth - width))
     y = Math.max(0, Math.min(y, imageHeight - height))
     
-    // Ensure crop doesn't exceed image bounds
+    // Ensure crop doesn't exceed image bounds (final check)
     if (x + width > imageWidth) {
-      width = imageWidth - x
+      if (aspectRatio) {
+        // If aspect ratio is locked, adjust both dimensions
+        const targetRatio = aspectRatio.width / aspectRatio.height
+        width = imageWidth - x
+        height = width / targetRatio
+        // If height exceeds bounds, adjust from height instead
+        if (y + height > imageHeight) {
+          height = imageHeight - y
+          width = height * targetRatio
+          x = Math.max(0, imageWidth - width)
+        }
+      } else {
+        width = imageWidth - x
+      }
     }
     if (y + height > imageHeight) {
-      height = imageHeight - y
+      if (aspectRatio) {
+        // If aspect ratio is locked, adjust both dimensions
+        const targetRatio = aspectRatio.width / aspectRatio.height
+        height = imageHeight - y
+        width = height * targetRatio
+        // If width exceeds bounds, adjust from width instead
+        if (x + width > imageWidth) {
+          width = imageWidth - x
+          height = width / targetRatio
+          y = Math.max(0, imageHeight - height)
+        }
+      } else {
+        height = imageHeight - y
+      }
     }
     
     // Ensure minimum size
-    width = Math.max(1, width)
-    height = Math.max(1, height)
+    const minSize = 1
+    width = Math.max(minSize, width)
+    height = Math.max(minSize, height)
+    
+    // Final aspect ratio check if locked
+    if (aspectRatio) {
+      const targetRatio = aspectRatio.width / aspectRatio.height
+      const currentRatio = width / height
+      if (Math.abs(currentRatio - targetRatio) > 0.001) {
+        // Adjust to match aspect ratio
+        if (width / targetRatio <= imageHeight && width / targetRatio >= minSize) {
+          height = width / targetRatio
+        } else if (height * targetRatio <= imageWidth && height * targetRatio >= minSize) {
+          width = height * targetRatio
+        }
+      }
+    }
     
     return { x, y, width, height }
   }
@@ -132,24 +212,39 @@ export function useCrop() {
     if (resizeHandle && resizeStartRect && imageWidth && imageHeight) {
       let newRect = { ...resizeStartRect }
       
+      // Calculate max dimensions based on aspect ratio and image bounds
+      let maxWidth = imageWidth
+      let maxHeight = imageHeight
+      
+      if (store.lockAspectRatio && store.aspectRatio) {
+        const targetRatio = store.aspectRatio.width / store.aspectRatio.height
+        // Calculate maximum possible dimensions while maintaining aspect ratio
+        const maxWidthByHeight = imageHeight * targetRatio
+        const maxHeightByWidth = imageWidth / targetRatio
+        maxWidth = Math.min(imageWidth, maxWidthByHeight)
+        maxHeight = Math.min(imageHeight, maxHeightByWidth)
+      }
+      
       // Calculate new dimensions based on handle
       if (resizeHandle.includes('e')) {
         // East edge or corner
-        newRect.width = x - resizeStartRect.x
+        newRect.width = Math.min(x - resizeStartRect.x, maxWidth)
       }
       if (resizeHandle.includes('w')) {
         // West edge or corner
-        newRect.width = resizeStartRect.x + resizeStartRect.width - x
-        newRect.x = x
+        const newWidth = Math.min(resizeStartRect.x + resizeStartRect.width - x, maxWidth)
+        newRect.width = newWidth
+        newRect.x = resizeStartRect.x + resizeStartRect.width - newWidth
       }
       if (resizeHandle.includes('s')) {
         // South edge or corner
-        newRect.height = y - resizeStartRect.y
+        newRect.height = Math.min(y - resizeStartRect.y, maxHeight)
       }
       if (resizeHandle.includes('n')) {
         // North edge or corner
-        newRect.height = resizeStartRect.y + resizeStartRect.height - y
-        newRect.y = y
+        const newHeight = Math.min(resizeStartRect.y + resizeStartRect.height - y, maxHeight)
+        newRect.height = newHeight
+        newRect.y = resizeStartRect.y + resizeStartRect.height - newHeight
       }
       
       // Apply aspect ratio constraint if locked
@@ -159,18 +254,32 @@ export function useCrop() {
         // Determine which dimension to constrain based on handle
         if (resizeHandle.includes('e') || resizeHandle.includes('w')) {
           // Constrain by width - adjust height
-          const newHeight = newRect.width / targetRatio
+          const newHeight = Math.min(newRect.width / targetRatio, maxHeight)
           if (resizeHandle.includes('n')) {
             newRect.y = resizeStartRect.y + resizeStartRect.height - newHeight
           }
           newRect.height = newHeight
+          // Re-adjust width if height was limited
+          if (newHeight < newRect.width / targetRatio) {
+            newRect.width = newHeight * targetRatio
+            if (resizeHandle.includes('w')) {
+              newRect.x = resizeStartRect.x + resizeStartRect.width - newRect.width
+            }
+          }
         } else if (resizeHandle.includes('s') || resizeHandle.includes('n')) {
           // Constrain by height - adjust width
-          const newWidth = newRect.height * targetRatio
+          const newWidth = Math.min(newRect.height * targetRatio, maxWidth)
           if (resizeHandle.includes('w')) {
             newRect.x = resizeStartRect.x + resizeStartRect.width - newWidth
           }
           newRect.width = newWidth
+          // Re-adjust height if width was limited
+          if (newWidth < newRect.height * targetRatio) {
+            newRect.height = newWidth / targetRatio
+            if (resizeHandle.includes('n')) {
+              newRect.y = resizeStartRect.y + resizeStartRect.height - newRect.height
+            }
+          }
         }
       }
       
@@ -184,8 +293,13 @@ export function useCrop() {
         newRect.height = Math.abs(newRect.height)
       }
       
-      // Clamp to bounds
-      const clampedRect = clampCropToBounds(newRect, imageWidth, imageHeight)
+      // Clamp to bounds (with aspect ratio if locked)
+      const clampedRect = clampCropToBounds(
+        newRect, 
+        imageWidth, 
+        imageHeight, 
+        store.lockAspectRatio ? store.aspectRatio : null
+      )
       store.setCropRect(clampedRect)
       updateShadowCrops()
       return
@@ -201,8 +315,13 @@ export function useCrop() {
         y: newY
       }
       // When moving, the crop already has the correct aspect ratio from creation
-      // Just clamp to bounds to keep it within image
-      const clampedRect = clampCropToBounds(newRect, imageWidth, imageHeight)
+      // Just clamp to bounds to keep it within image (maintain aspect ratio if locked)
+      const clampedRect = clampCropToBounds(
+        newRect, 
+        imageWidth, 
+        imageHeight, 
+        store.lockAspectRatio ? store.aspectRatio : null
+      )
       store.setCropRect(clampedRect)
       updateShadowCrops()
       return
@@ -251,9 +370,14 @@ export function useCrop() {
       height: Math.abs(height)
     }
     
-    // Clamp to image bounds if provided
+    // Clamp to image bounds if provided (with aspect ratio if locked)
     if (imageWidth && imageHeight) {
-      newRect = clampCropToBounds(newRect, imageWidth, imageHeight)
+      newRect = clampCropToBounds(
+        newRect, 
+        imageWidth, 
+        imageHeight, 
+        store.lockAspectRatio ? store.aspectRatio : null
+      )
     }
     
     store.setCropRect(newRect)
@@ -349,6 +473,53 @@ export function useCrop() {
     store.setShadowCrops(crops)
   }
   
+  function updateCropRect(newRect: CropRect, imageWidth?: number, imageHeight?: number) {
+    let finalRect = newRect
+    
+    // Apply aspect ratio constraint if locked
+    if (store.lockAspectRatio && store.aspectRatio) {
+      const targetRatio = store.aspectRatio.width / store.aspectRatio.height
+      const currentRatio = newRect.width / newRect.height
+      
+      if (currentRatio !== targetRatio) {
+        // Adjust to match aspect ratio, keeping center point
+        const centerX = newRect.x + newRect.width / 2
+        const centerY = newRect.y + newRect.height / 2
+        
+        let adjustedWidth = newRect.width
+        let adjustedHeight = newRect.height
+        
+        if (currentRatio > targetRatio) {
+          // Too wide, adjust height
+          adjustedHeight = adjustedWidth / targetRatio
+        } else {
+          // Too tall, adjust width
+          adjustedWidth = adjustedHeight * targetRatio
+        }
+        
+        finalRect = {
+          x: centerX - adjustedWidth / 2,
+          y: centerY - adjustedHeight / 2,
+          width: adjustedWidth,
+          height: adjustedHeight
+        }
+      }
+    }
+    
+    // Clamp to bounds if image dimensions provided (with aspect ratio if locked)
+    if (imageWidth && imageHeight) {
+      finalRect = clampCropToBounds(
+        finalRect, 
+        imageWidth, 
+        imageHeight, 
+        store.lockAspectRatio ? store.aspectRatio : null
+      )
+    }
+    
+    store.setCropRect(finalRect)
+    updateShadowCrops()
+  }
+  
   watch([cropRect, shadowCount], updateShadowCrops, { immediate: true })
   
   return {
@@ -367,7 +538,8 @@ export function useCrop() {
     setFreeAspectRatio,
     applyRatioToSelection,
     updateShadowCrops,
-    getResizeHandle
+    getResizeHandle,
+    updateCropRect
   }
 }
 
