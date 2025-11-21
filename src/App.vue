@@ -89,7 +89,7 @@ import ExportDialog from './components/ExportDialog.vue'
 import { useImageEditor } from './composables/useImageEditor'
 import { useI18n } from './composables/useI18n'
 
-const version = '1.0.1'
+const version = '1.0.2'
 const { hasImage, loadImage } = useImageEditor()
 const { $t } = useI18n()
 const showExportDialog = ref(false)
