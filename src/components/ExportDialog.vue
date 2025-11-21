@@ -6,7 +6,11 @@
       <div class="dialog-content">
         <div class="control-group">
           <label>{{ $t('export_format') }}</label>
-          <select v-model="settings.format" class="format-select">
+          <select 
+            v-model="settings.format" 
+            :key="`format-${settings.format}-${store.originalImageFormat || 'none'}`" 
+            class="format-select"
+          >
             <option value="png">PNG</option>
             <option value="jpg">JPEG</option>
             <option value="webp">WebP</option>
@@ -133,7 +137,7 @@ import { useExport, type ExportSettings } from '@/composables/useExport'
 import { useI18n } from '@/composables/useI18n'
 import { useImageEditor } from '@/composables/useImageEditor'
 import { useRotation } from '@/composables/useRotation'
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, nextTick } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
 import piexif from 'piexifjs'
 
@@ -152,8 +156,22 @@ const { rotation } = useRotation()
 const { generatePreview, exportSingleImage } = useExport()
 const { $t } = useI18n()
 
+// Initialize settings with format based on current image (if available)
+function getInitialFormat(): 'png' | 'jpg' | 'webp' {
+  if (store.originalImageFormat) {
+    return store.originalImageFormat
+  }
+  if (store.imageMetadata?.format === 'jpeg') {
+    return 'jpg'
+  }
+  if (store.imageMetadata?.format === 'png') {
+    return 'png'
+  }
+  return 'png'
+}
+
 const settings = ref<ExportSettings>({
-  format: 'png',
+  format: getInitialFormat(),
   quality: 90,
   includeMetadata: false
 })
@@ -632,12 +650,83 @@ async function downloadItem(item: ExportItem) {
 
 watch(() => props.isOpen, async (isOpen) => {
   if (isOpen) {
+    // Default format based on loaded image format for better UX
+    // Use stored original format (set immediately on import) as primary source
+    // Fallback to metadata format, then file detection
+    let defaultFormat: 'png' | 'jpg' | 'webp' = 'png'
+    
+    // First priority: use stored original format (always available, set on import)
+    if (store.originalImageFormat) {
+      defaultFormat = store.originalImageFormat
+    } 
+    // Second priority: use metadata format
+    else if (store.imageMetadata?.format === 'jpeg') {
+      defaultFormat = 'jpg'
+    } else if (store.imageMetadata?.format === 'png') {
+      defaultFormat = 'png'
+    }
+    // Third priority: detect from file (fallback)
+    else if (store.currentImage) {
+      const fileName = store.currentImage.name.toLowerCase()
+      const mimeType = (store.currentImage.type || '').toLowerCase()
+      
+      if (mimeType.includes('jpeg') || mimeType.includes('jpg') || 
+          fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) {
+        defaultFormat = 'jpg'
+      } else if (mimeType.includes('png') || fileName.endsWith('.png')) {
+        defaultFormat = 'png'
+      } else if (mimeType.includes('webp') || fileName.endsWith('.webp')) {
+        defaultFormat = 'webp'
+      }
+    }
+    
+    console.log('Export format detection:', {
+      defaultFormat,
+      originalFormat: store.originalImageFormat,
+      metadataFormat: store.imageMetadata?.format,
+      fileName: store.currentImage?.name,
+      mimeType: store.currentImage?.type,
+      currentSettingsFormat: settings.value.format
+    })
+    
+    // Update settings reactively - completely replace the object to ensure Vue detects the change
     settings.value = {
-      format: 'png',
+      format: defaultFormat,
       quality: 90,
       includeMetadata: false
     }
+    
     filename.value = 'imageee-cut-export'
+    
+    // Force Vue to detect the change
+    await nextTick()
+    console.log('Settings after update:', {
+      format: settings.value.format,
+      expectedFormat: defaultFormat,
+      match: settings.value.format === defaultFormat,
+      selectValue: (document.querySelector('.format-select') as HTMLSelectElement)?.value
+    })
+    
+    // Double-check: if format doesn't match, force update again
+    if (settings.value.format !== defaultFormat) {
+      console.warn('Format mismatch detected, forcing update...')
+      settings.value = {
+        ...settings.value,
+        format: defaultFormat
+      }
+      await nextTick()
+    }
+    
+    // Triple-check: verify the select element has the correct value
+    await nextTick()
+    const selectElement = document.querySelector('.format-select') as HTMLSelectElement
+    if (selectElement && selectElement.value !== defaultFormat) {
+      console.warn('Select element value mismatch, forcing DOM update...')
+      selectElement.value = defaultFormat
+      // Trigger change event to ensure Vue knows
+      selectElement.dispatchEvent(new Event('change', { bubbles: true }))
+    }
+    
     // Wait a bit to ensure imageElement is ready
     await new Promise(resolve => setTimeout(resolve, 100))
     await generateExportItems()
@@ -671,7 +760,18 @@ watch(() => store.imageMetadata, () => {
   if (!metadataOptionEnabled.value) {
     settings.value.includeMetadata = false
   }
-})
+  
+  // Update format when metadata becomes available (if dialog is open)
+  if (props.isOpen && store.imageMetadata?.format) {
+    if (store.imageMetadata.format === 'jpeg' && settings.value.format !== 'jpg') {
+      settings.value.format = 'jpg'
+      console.log('Updated export format to jpg based on metadata')
+    } else if (store.imageMetadata.format === 'png' && settings.value.format !== 'png') {
+      settings.value.format = 'png'
+      console.log('Updated export format to png based on metadata')
+    }
+  }
+}, { immediate: false })
 </script>
 
 <style scoped>

@@ -2,6 +2,7 @@
   <div class="app-container">
     <header class="toolbar">
       <div class="toolbar-content">
+        <span class="version-number">v{{ version }}</span>
         <LanguageToggle />
         <button @click="triggerFileInput" class="btn-import">
           {{ $t('import_image') }}
@@ -79,6 +80,7 @@ import ExportDialog from './components/ExportDialog.vue'
 import { useImageEditor } from './composables/useImageEditor'
 import { useI18n } from './composables/useI18n'
 
+const version = '1.0.1'
 const { hasImage, loadImage } = useImageEditor()
 const { $t } = useI18n()
 const showExportDialog = ref(false)
@@ -150,6 +152,18 @@ body {
 
 .toolbar-content::-webkit-scrollbar {
   display: none;
+}
+
+.version-number {
+  font-size: 0.75rem;
+  color: #6b5d4f;
+  font-weight: 500;
+  padding: 0.5rem 0.75rem;
+  background: #f0ebe3;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  border: 1px solid #d4c4b0;
 }
 
 .btn-import {

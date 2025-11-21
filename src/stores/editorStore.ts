@@ -46,6 +46,23 @@ export const useEditorStore = defineStore('editor', () => {
   const shadowCount = ref(1)
   const locale = ref<Locale>(getStoredLocale())
   const imageMetadata = ref<ImageMetadata | null>(null)
+  const originalImageFormat = ref<'png' | 'jpg' | 'webp' | null>(null)
+  
+  function detectFileFormat(file: File): 'png' | 'jpg' | 'webp' | null {
+    const fileName = file.name.toLowerCase()
+    const mimeType = (file.type || '').toLowerCase()
+    
+    if (mimeType.includes('jpeg') || mimeType.includes('jpg') || fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) {
+      return 'jpg'
+    }
+    if (mimeType.includes('png') || fileName.endsWith('.png')) {
+      return 'png'
+    }
+    if (mimeType.includes('webp') || fileName.endsWith('.webp')) {
+      return 'webp'
+    }
+    return null
+  }
   
   function setImage(file: File) {
     if (imageUrl.value) {
@@ -53,6 +70,15 @@ export const useEditorStore = defineStore('editor', () => {
     }
     currentImage.value = file
     imageUrl.value = URL.createObjectURL(file)
+    // Store original file format immediately
+    const detectedFormat = detectFileFormat(file)
+    originalImageFormat.value = detectedFormat
+    console.log('setImage - Format detection:', {
+      fileName: file.name,
+      mimeType: file.type,
+      detectedFormat,
+      originalImageFormat: originalImageFormat.value
+    })
   }
   
   function setImageElement(element: HTMLImageElement) {
@@ -108,6 +134,7 @@ export const useEditorStore = defineStore('editor', () => {
     shadowCrops.value = []
     isDrawing.value = false
     imageMetadata.value = null
+    originalImageFormat.value = null
   }
   
   return {
@@ -122,6 +149,7 @@ export const useEditorStore = defineStore('editor', () => {
     aspectRatio,
     shadowCount,
     imageMetadata,
+    originalImageFormat,
     locale,
     setImage,
     setImageElement,
