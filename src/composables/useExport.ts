@@ -1,6 +1,9 @@
 import { ref } from 'vue'
 import { cropImage } from '@/utils/imageProcessor'
+import { useEditorStore } from '@/stores/editorStore'
 import type { CropRect } from './useCrop'
+import type { ImageMetadata } from '@/utils/metadata'
+import { applyMetadataToBlob, metadataSupportedForFormat } from '@/utils/metadata'
 
 export interface ExportSettings {
   format: 'png' | 'jpg' | 'webp'
@@ -14,6 +17,16 @@ export function useExport() {
   const exportStatus = ref('')
   const currentFile = ref(0)
   const totalFiles = ref(0)
+  const store = useEditorStore()
+  
+  function resolveMetadataForExport(
+    format: ExportSettings['format'],
+    includeMetadata: boolean
+  ): ImageMetadata | null {
+    if (!includeMetadata) return null
+    if (format !== 'jpg' && format !== 'png') return null
+    return metadataSupportedForFormat(store.imageMetadata, format) ? store.imageMetadata : null
+  }
   
   async function exportImage(
     sourceImage: HTMLImageElement,
@@ -34,6 +47,8 @@ export function useExport() {
       const validCropRect = cropRect && cropRect.width > 0 && cropRect.height > 0 ? cropRect : null
       const validShadowCrops = shadowCrops.filter(c => c && c.width > 0 && c.height > 0)
       const cropsToExport = validCropRect ? [validCropRect, ...validShadowCrops] : []
+      
+      const metadataForExport = resolveMetadataForExport(settings.format, settings.includeMetadata)
       
       if (cropsToExport.length === 0) {
         // Export full image
@@ -72,7 +87,7 @@ export function useExport() {
         exportStatus.value = 'Exporting image...'
         exportProgress.value = 70
         
-        await downloadCanvas(canvas, filename, settings)
+        await downloadCanvas(canvas, filename, settings, metadataForExport)
         
         exportStatus.value = 'Complete!'
         exportProgress.value = 100
@@ -104,7 +119,7 @@ export function useExport() {
           exportProgress.value = Math.round((i / total) * 60 + 20) // 20-80% for processing
           
           const suffix = i === 0 ? '' : `_${i + 1}`
-          await downloadCanvas(croppedCanvas, `${filename}${suffix}`, settings)
+          await downloadCanvas(croppedCanvas, `${filename}${suffix}`, settings, metadataForExport)
           
           exportProgress.value = Math.round(((i + 1) / total) * 90) // 90% max before completion
           
@@ -125,59 +140,120 @@ export function useExport() {
   function downloadCanvas(
     canvas: HTMLCanvasElement,
     filename: string,
-    settings: ExportSettings
+    settings: ExportSettings,
+    metadata: ImageMetadata | null
   ): Promise<void> {
     return new Promise((resolve, reject) => {
-      canvas.toBlob(
-        (blob) => {
+      // For JPEG, ensure we use the correct MIME type and prepare canvas (remove transparency)
+      let exportCanvas = canvas
+      if (settings.format === 'jpg') {
+        // Create a new canvas with white background to remove transparency
+        const jpegCanvas = document.createElement('canvas')
+        jpegCanvas.width = canvas.width
+        jpegCanvas.height = canvas.height
+        const jpegCtx = jpegCanvas.getContext('2d')!
+        // Fill with white background
+        jpegCtx.fillStyle = '#FFFFFF'
+        jpegCtx.fillRect(0, 0, jpegCanvas.width, jpegCanvas.height)
+        // Draw the original canvas on top
+        jpegCtx.drawImage(canvas, 0, 0)
+        exportCanvas = jpegCanvas
+      }
+      
+      // Determine correct MIME type
+      const mimeType = settings.format === 'jpg' 
+        ? 'image/jpeg' 
+        : settings.format === 'png'
+        ? 'image/png'
+        : 'image/webp'
+      
+      exportCanvas.toBlob(
+        async (blob) => {
           if (!blob) {
             reject(new Error('Failed to create blob'))
             return
           }
-          
-          const url = URL.createObjectURL(blob)
-          const a = document.createElement('a')
-          a.href = url
-          a.download = `${filename}.${settings.format}`
-          
-          // For iOS Safari, we need to trigger download differently
-          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
-                        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-          
-          if (isIOS) {
-            // iOS Safari: open in new tab/window to trigger download
-            const newWindow = window.open(url, '_blank')
-            if (newWindow) {
-              setTimeout(() => {
-                newWindow.close()
-                URL.revokeObjectURL(url)
-                resolve()
-              }, 100)
+          try {
+            const metadataFormat = settings.format === 'jpg' || settings.format === 'png'
+              ? settings.format
+              : null
+            
+            let finalBlob = blob
+            if (metadata && metadataFormat && settings.includeMetadata) {
+              // Verify blob type matches the requested format before applying metadata
+              const blobIsJpeg = blob.type.includes('jpeg') || blob.type.includes('jpg')
+              const blobIsPng = blob.type.includes('png')
+              const formatMatchesBlob = 
+                (metadataFormat === 'jpg' && blobIsJpeg) ||
+                (metadataFormat === 'png' && blobIsPng)
+              
+              if (formatMatchesBlob) {
+                console.log('Applying metadata:', { format: metadataFormat, blobType: blob.type, metadata })
+                finalBlob = await applyMetadataToBlob(blob, metadata, metadataFormat)
+                console.log('Metadata applied, blob size:', finalBlob.size, 'original:', blob.size)
+              } else {
+                console.warn(`Skipping metadata: format mismatch - requested ${metadataFormat} but blob is ${blob.type}`)
+              }
             } else {
-              // Fallback: try regular download
-              document.body.appendChild(a)
-              a.click()
-              setTimeout(() => {
-                document.body.removeChild(a)
-                URL.revokeObjectURL(url)
-                resolve()
-              }, 100)
+              console.log('Skipping metadata:', { 
+                hasMetadata: !!metadata, 
+                metadataFormat, 
+                includeMetadata: settings.includeMetadata 
+              })
             }
-          } else {
-            // Standard download for other browsers
-            document.body.appendChild(a)
-            a.click()
-            setTimeout(() => {
-              document.body.removeChild(a)
-              URL.revokeObjectURL(url)
-              resolve()
-            }, 100)
+            
+            triggerBlobDownload(finalBlob, filename, settings.format, resolve)
+          } catch (error) {
+            console.error('Error in downloadCanvas:', error)
+            reject(error)
           }
         },
-        `image/${settings.format}`,
+        mimeType,
         settings.format === 'png' ? undefined : settings.quality / 100
       )
     })
+  }
+  
+  function triggerBlobDownload(
+    blob: Blob,
+    filename: string,
+    extension: string,
+    resolve: () => void
+  ) {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${filename}.${extension}`
+    
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    
+    if (isIOS) {
+      const newWindow = window.open(url, '_blank')
+      if (newWindow) {
+        setTimeout(() => {
+          newWindow.close()
+          URL.revokeObjectURL(url)
+          resolve()
+        }, 100)
+      } else {
+        document.body.appendChild(a)
+        a.click()
+        setTimeout(() => {
+          document.body.removeChild(a)
+          URL.revokeObjectURL(url)
+          resolve()
+        }, 100)
+      }
+    } else {
+      document.body.appendChild(a)
+      a.click()
+      setTimeout(() => {
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        resolve()
+      }, 100)
+    }
   }
   
   async function generatePreview(
@@ -278,7 +354,8 @@ export function useExport() {
       ctx.setTransform(1, 0, 0, 1, 0, 0)
     }
     
-    await downloadCanvas(canvas, filename, settings)
+    const metadataForExport = resolveMetadataForExport(settings.format, settings.includeMetadata)
+    await downloadCanvas(canvas, filename, settings, metadataForExport)
   }
   
   return {

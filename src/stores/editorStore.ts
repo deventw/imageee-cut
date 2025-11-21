@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { Locale } from '@/utils/i18n'
 import type { CropRect } from '@/composables/useCrop'
+import type { ImageMetadata } from '@/utils/metadata'
 
 // Helper function to safely get locale from localStorage
 function getStoredLocale(): Locale {
@@ -44,6 +45,7 @@ export const useEditorStore = defineStore('editor', () => {
   const aspectRatio = ref<{ width: number; height: number } | null>(null)
   const shadowCount = ref(1)
   const locale = ref<Locale>(getStoredLocale())
+  const imageMetadata = ref<ImageMetadata | null>(null)
   
   function setImage(file: File) {
     if (imageUrl.value) {
@@ -85,6 +87,10 @@ export const useEditorStore = defineStore('editor', () => {
     shadowCount.value = count
   }
   
+  function setImageMetadata(metadata: ImageMetadata | null) {
+    imageMetadata.value = metadata
+  }
+  
   function setLocale(newLocale: Locale) {
     locale.value = newLocale
     saveLocaleToStorage(newLocale)
@@ -101,6 +107,7 @@ export const useEditorStore = defineStore('editor', () => {
     cropRect.value = null
     shadowCrops.value = []
     isDrawing.value = false
+    imageMetadata.value = null
   }
   
   return {
@@ -114,6 +121,7 @@ export const useEditorStore = defineStore('editor', () => {
     lockAspectRatio,
     aspectRatio,
     shadowCount,
+    imageMetadata,
     locale,
     setImage,
     setImageElement,
@@ -124,6 +132,7 @@ export const useEditorStore = defineStore('editor', () => {
     setLockAspectRatio,
     setAspectRatio,
     setShadowCount,
+    setImageMetadata,
     setLocale,
     clearImage
   }

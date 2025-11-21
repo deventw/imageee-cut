@@ -1,5 +1,6 @@
 import { computed } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
+import { extractImageMetadata } from '@/utils/metadata'
 
 export function useImageEditor() {
   const store = useEditorStore()
@@ -13,6 +14,14 @@ export function useImageEditor() {
     }
     
     store.setImage(file)
+    store.setImageMetadata(null)
+    
+    try {
+      const metadata = await extractImageMetadata(file)
+      store.setImageMetadata(metadata)
+    } catch {
+      store.setImageMetadata(null)
+    }
     
     // Create image element
     if (store.imageUrl) {

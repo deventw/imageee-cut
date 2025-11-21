@@ -35,11 +35,35 @@
           />
         </div>
         
-        <div class="control-group">
-          <label>
-            <input type="checkbox" v-model="settings.includeMetadata" />
-            Include Metadata
-          </label>
+<div class="control-group metadata-group">
+  <label class="metadata-label">
+    <input 
+      type="checkbox" 
+      v-model="settings.includeMetadata" 
+      :disabled="!metadataOptionEnabled"
+    />
+    Include metadata (PNG/JPEG only)
+  </label>
+  <p class="metadata-hint" :class="{ enabled: metadataOptionEnabled }">
+    {{ metadataHint }}
+  </p>
+</div>
+        
+        <!-- Metadata Display -->
+        <div class="control-group metadata-display-group" v-if="store.imageMetadata && store.imageMetadata.format === 'jpeg' && store.imageMetadata.jpegExif">
+          <div class="metadata-header" @click="showMetadataDetails = !showMetadataDetails">
+            <label class="metadata-display-label">
+              <span class="metadata-icon">{{ showMetadataDetails ? '▼' : '▶' }}</span>
+              Image Metadata
+              <span class="metadata-count">({{ formattedMetadata.length }} fields)</span>
+            </label>
+          </div>
+          <div v-if="showMetadataDetails" class="metadata-details">
+            <div class="metadata-item" v-for="(item, index) in formattedMetadata" :key="index">
+              <span class="metadata-key">{{ item.key }}:</span>
+              <span class="metadata-value">{{ item.value }}</span>
+            </div>
+          </div>
         </div>
         
         <div class="control-group">
@@ -109,7 +133,9 @@ import { useExport, type ExportSettings } from '@/composables/useExport'
 import { useI18n } from '@/composables/useI18n'
 import { useImageEditor } from '@/composables/useImageEditor'
 import { useRotation } from '@/composables/useRotation'
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
+import { useEditorStore } from '@/stores/editorStore'
+import piexif from 'piexifjs'
 
 const props = defineProps<{
   isOpen: boolean
@@ -120,6 +146,7 @@ const emit = defineEmits<{
 }>()
 
 const { imageElement } = useImageEditor()
+const store = useEditorStore()
 const { cropRect, shadowCrops } = useCrop()
 const { rotation } = useRotation()
 const { generatePreview, exportSingleImage } = useExport()
@@ -132,6 +159,338 @@ const settings = ref<ExportSettings>({
 })
 
 const filename = ref('imageee-cut-export')
+const showMetadataDetails = ref(false)
+const formattedMetadata = ref<Array<{ key: string; value: string }>>([])
+
+// Helper function to format EXIF data
+function formatExifData(exifData: piexif.ExifDict): Array<{ key: string; value: string }> {
+  const formatted: Array<{ key: string; value: string }> = []
+  
+  // 0th IFD tags
+  const ifd0Tags: Record<number, string> = {
+    256: 'ImageWidth',
+    257: 'ImageHeight',
+    258: 'BitsPerSample',
+    259: 'Compression',
+    262: 'PhotometricInterpretation',
+    271: 'Make',
+    272: 'Model',
+    274: 'Orientation',
+    277: 'SamplesPerPixel',
+    282: 'XResolution',
+    283: 'YResolution',
+    284: 'PlanarConfiguration',
+    296: 'ResolutionUnit',
+    301: 'TransferFunction',
+    305: 'Software',
+    306: 'DateTime',
+    315: 'Artist',
+    316: 'HostComputer',
+    531: 'YCbCrPositioning',
+    532: 'ReferenceBlackWhite',
+    33432: 'Copyright',
+  }
+  
+  // EXIF IFD tags  
+  const exifTags: Record<number, string> = {
+    33434: 'ExposureTime',
+    33437: 'FNumber',
+    34850: 'ExposureProgram',
+    34852: 'SpectralSensitivity',
+    34855: 'ISOSpeedRatings',
+    34856: 'OECF',
+    34864: 'SensitivityType',
+    34865: 'StandardOutputSensitivity',
+    34866: 'RecommendedExposureIndex',
+    34867: 'ISOSpeed',
+    34868: 'ISOSpeedLatitudeYYY',
+    34869: 'ISOSpeedLatitudeZZZ',
+    36864: 'ExifVersion',
+    36867: 'DateTimeOriginal',
+    36868: 'DateTimeDigitized',
+    37121: 'ComponentsConfiguration',
+    37122: 'CompressedBitsPerPixel',
+    37377: 'ShutterSpeedValue',
+    37378: 'ApertureValue',
+    37379: 'BrightnessValue',
+    37380: 'ExposureBiasValue',
+    37381: 'MaxApertureValue',
+    37382: 'SubjectDistance',
+    37383: 'MeteringMode',
+    37384: 'LightSource',
+    37385: 'Flash',
+    37386: 'FocalLength',
+    37396: 'SubjectArea',
+    37500: 'MakerNote',
+    37510: 'UserComment',
+    37520: 'SubSecTime',
+    37521: 'SubSecTimeOriginal',
+    37522: 'SubSecTimeDigitized',
+    40960: 'FlashPixVersion',
+    40961: 'ColorSpace',
+    40962: 'PixelXDimension',
+    40963: 'PixelYDimension',
+    40964: 'RelatedSoundFile',
+    40965: 'InteroperabilityIFD',
+    41483: 'FlashEnergy',
+    41484: 'SpatialFrequencyResponse',
+    41486: 'FocalPlaneXResolution',
+    41487: 'FocalPlaneYResolution',
+    41488: 'FocalPlaneResolutionUnit',
+    41492: 'SubjectLocation',
+    41493: 'ExposureIndex',
+    41495: 'SensingMethod',
+    41728: 'FileSource',
+    41729: 'SceneType',
+    41730: 'CFAPattern',
+    41985: 'CustomRendered',
+    41986: 'ExposureMode',
+    41987: 'WhiteBalance',
+    41988: 'DigitalZoomRatio',
+    41989: 'FocalLengthIn35mmFilm',
+    41990: 'SceneCaptureType',
+    41991: 'GainControl',
+    41992: 'Contrast',
+    41993: 'Saturation',
+    41994: 'Sharpness',
+    41995: 'DeviceSettingDescription',
+    41996: 'SubjectDistanceRange',
+    42016: 'ImageUniqueID',
+  }
+  
+  // GPS tags
+  const gpsTags: Record<number, string> = {
+    0: 'GPSVersionID',
+    1: 'GPSLatitudeRef',
+    2: 'GPSLatitude',
+    3: 'GPSLongitudeRef',
+    4: 'GPSLongitude',
+    5: 'GPSAltitudeRef',
+    6: 'GPSAltitude',
+    7: 'GPSTimeStamp',
+    8: 'GPSSatellites',
+    9: 'GPSStatus',
+    10: 'GPSMeasureMode',
+    11: 'GPSDOP',
+    12: 'GPSSpeedRef',
+    13: 'GPSSpeed',
+    14: 'GPSTrackRef',
+    15: 'GPSTrack',
+    16: 'GPSImgDirectionRef',
+    17: 'GPSImgDirection',
+    18: 'GPSMapDatum',
+    19: 'GPSDestLatitudeRef',
+    20: 'GPSDestLatitude',
+    21: 'GPSDestLongitudeRef',
+    22: 'GPSDestLongitude',
+    23: 'GPSDestBearingRef',
+    24: 'GPSDestBearing',
+    25: 'GPSDestDistanceRef',
+    26: 'GPSDestDistance',
+    27: 'GPSProcessingMethod',
+    28: 'GPSAreaInformation',
+    29: 'GPSDateStamp',
+    30: 'GPSDifferential',
+    31: 'GPSHPositioningError',
+  }
+  
+  function formatValue(tag: number, value: unknown, section: string): string {
+    if (value === null || value === undefined) return ''
+    
+    // Handle arrays
+    if (Array.isArray(value)) {
+      if (section === 'GPS' && tag === 2) {
+        // GPS Latitude: [degrees, minutes, seconds]
+        const [deg, min, sec] = value
+        return `${deg[0]}/${deg[1]}° ${min[0]}/${min[1]}' ${sec[0]}/${sec[1]}"`
+      }
+      if (section === 'GPS' && tag === 4) {
+        // GPS Longitude
+        const [deg, min, sec] = value
+        return `${deg[0]}/${deg[1]}° ${min[0]}/${min[1]}' ${sec[0]}/${sec[1]}"`
+      }
+      return value.map(v => String(v)).join(', ')
+    }
+    
+    // Handle fractions (arrays with 2 elements)
+    if (Array.isArray(value) && value.length === 2 && typeof value[0] === 'number' && typeof value[1] === 'number') {
+      if (value[1] === 0) return String(value[0])
+      if (value[1] === 1) return String(value[0])
+      return `${value[0]}/${value[1]}`
+    }
+    
+    // Special formatting for common tags
+    if (section === '0th' && tag === 306) {
+      // DateTime
+      return String(value)
+    }
+    if (section === 'Exif' && tag === 33434) {
+      // ExposureTime
+      if (Array.isArray(value) && value.length === 2) {
+        const num = value[0] / value[1]
+        if (num < 1) return `1/${Math.round(1/num)}`
+        return String(num)
+      }
+    }
+    if (section === 'Exif' && tag === 33437) {
+      // FNumber
+      if (Array.isArray(value) && value.length === 2) {
+        return `f/${(value[0] / value[1]).toFixed(1)}`
+      }
+    }
+    if (section === 'Exif' && tag === 37378) {
+      // ApertureValue
+      if (Array.isArray(value) && value.length === 2) {
+        const av = value[0] / value[1]
+        const fNumber = Math.pow(2, av / 2)
+        return `f/${fNumber.toFixed(1)}`
+      }
+    }
+    if (section === 'Exif' && tag === 37386) {
+      // FocalLength
+      if (Array.isArray(value) && value.length === 2) {
+        return `${(value[0] / value[1]).toFixed(0)} mm`
+      }
+    }
+    if (section === 'Exif' && tag === 34855) {
+      // ISOSpeedRatings
+      if (Array.isArray(value)) {
+        return `ISO ${value.map(v => String(v)).join(', ')}`
+      }
+    }
+    if (section === 'Exif' && tag === 34867) {
+      // ISOSpeed
+      if (typeof value === 'number') {
+        return `ISO ${value}`
+      }
+      if (Array.isArray(value) && value.length === 2) {
+        return `ISO ${value[0] / value[1]}`
+      }
+    }
+    if (section === 'Exif' && tag === 37385) {
+      // Flash
+      const flash = Number(value)
+      if (flash === 0) return 'No'
+      if (flash === 1) return 'Yes'
+      return `Flash (${flash})`
+    }
+    if (section === 'Exif' && tag === 41987) {
+      // WhiteBalance
+      const wb = Number(value)
+      if (wb === 0) return 'Auto'
+      if (wb === 1) return 'Manual'
+      return String(value)
+    }
+    
+    return String(value)
+  }
+  
+  function getTagName(tag: number, section: string): string {
+    if (section === '0th') return ifd0Tags[tag] || `Tag ${tag}`
+    if (section === 'Exif') return exifTags[tag] || `Tag ${tag}`
+    if (section === 'GPS') return gpsTags[tag] || `GPS Tag ${tag}`
+    return `${section} Tag ${tag}`
+  }
+  
+  // Process each section
+  Object.entries(exifData).forEach(([sectionName, section]) => {
+    if (!section || typeof section !== 'object' || Array.isArray(section)) return
+    
+    Object.entries(section as Record<string, unknown>).forEach(([tagStr, value]) => {
+      const tag = Number(tagStr)
+      if (isNaN(tag)) return
+      
+      const tagName = getTagName(tag, sectionName)
+      const formattedValue = formatValue(tag, value, sectionName)
+      
+      if (formattedValue) {
+        formatted.push({ key: tagName, value: formattedValue })
+      }
+    })
+  })
+  
+  return formatted.sort((a, b) => a.key.localeCompare(b.key))
+}
+
+// Parse EXIF metadata from current image file
+async function parseMetadata(): Promise<Array<{ key: string; value: string }>> {
+  if (!store.currentImage || !store.imageMetadata || store.imageMetadata.format !== 'jpeg') {
+    return []
+  }
+  
+  try {
+    // Use FileReader to convert file to data URL efficiently
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = reject
+      reader.readAsDataURL(store.currentImage!)
+    })
+    
+    const exifData = piexif.load(dataUrl)
+    return formatExifData(exifData)
+  } catch (error) {
+    console.error('Failed to parse metadata:', error)
+    return []
+  }
+}
+
+// Watch for image metadata changes and parse
+watch(() => [store.imageMetadata, store.currentImage], async () => {
+  if (store.imageMetadata && store.imageMetadata.format === 'jpeg' && store.currentImage) {
+    formattedMetadata.value = await parseMetadata()
+  } else {
+    formattedMetadata.value = []
+  }
+}, { immediate: true })
+
+const metadataOptionEnabled = computed(() => {
+  if (settings.value.format === 'webp') return false
+  if (!store.imageMetadata) return false
+  if (settings.value.format === 'jpg') {
+    return store.imageMetadata.format === 'jpeg' && (
+      !!store.imageMetadata.jpegExif ||
+      (!!store.imageMetadata.jpegSegments && store.imageMetadata.jpegSegments.length > 0)
+    )
+  }
+  if (settings.value.format === 'png') {
+    return store.imageMetadata.format === 'png' &&
+      !!store.imageMetadata.pngChunks &&
+      store.imageMetadata.pngChunks.length > 0
+  }
+  return false
+})
+
+const metadataHint = computed(() => {
+  if (settings.value.format === 'webp') {
+    return 'Metadata is only available when exporting PNG or JPEG files.'
+  }
+  
+  if (!store.imageMetadata) {
+    return 'Load a PNG or JPEG that already has metadata to enable this option.'
+  }
+  
+  if (settings.value.format === 'jpg') {
+    if (store.imageMetadata.format !== 'jpeg') {
+      return 'Metadata can only be kept when exporting as JPEG from an original JPEG.'
+    }
+    if (!store.imageMetadata.jpegExif && 
+        (!store.imageMetadata.jpegSegments || store.imageMetadata.jpegSegments.length === 0)) {
+      return 'This JPEG does not contain metadata to keep.'
+    }
+  }
+  
+  if (settings.value.format === 'png') {
+    if (store.imageMetadata.format !== 'png') {
+      return 'Metadata can only be kept when exporting as PNG from an original PNG.'
+    }
+    if (!store.imageMetadata.pngChunks || store.imageMetadata.pngChunks.length === 0) {
+      return 'This PNG does not contain metadata to keep.'
+    }
+  }
+  
+  return 'Keeps the metadata from the original PNG/JPEG image.'
+})
 
 interface ExportItem {
   preview: string
@@ -301,6 +660,18 @@ watch([filename, () => settings.value.format, () => settings.value.quality, rota
     await generateExportItems()
   }
 }, { deep: true })
+
+watch(() => settings.value.format, () => {
+  if (!metadataOptionEnabled.value) {
+    settings.value.includeMetadata = false
+  }
+})
+
+watch(() => store.imageMetadata, () => {
+  if (!metadataOptionEnabled.value) {
+    settings.value.includeMetadata = false
+  }
+})
 </script>
 
 <style scoped>
@@ -348,6 +719,102 @@ h2 {
   display: block;
   margin-bottom: 0.5rem;
   font-weight: 500;
+}
+
+.metadata-group {
+  margin-top: 1rem;
+}
+
+.metadata-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+}
+
+.metadata-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  color: #9c8a7a;
+}
+
+.metadata-hint.enabled {
+  color: #3c3c3c;
+}
+
+.metadata-display-group {
+  margin-top: 1rem;
+  border: 1px solid #d4c4b0;
+  border-radius: 6px;
+  background: #faf8f4;
+  overflow: hidden;
+}
+
+.metadata-header {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s;
+}
+
+.metadata-header:hover {
+  background: #f0ebe3;
+}
+
+.metadata-display-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  color: #3c3c3c;
+  margin: 0;
+}
+
+.metadata-icon {
+  font-size: 0.75rem;
+  color: #a67c52;
+  transition: transform 0.2s;
+}
+
+.metadata-count {
+  font-size: 0.85rem;
+  font-weight: normal;
+  color: #9c8a7a;
+  margin-left: auto;
+}
+
+.metadata-details {
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid #e8dfd4;
+  background: #fff;
+}
+
+.metadata-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #f0ebe3;
+  font-size: 0.9rem;
+}
+
+.metadata-item:last-child {
+  border-bottom: none;
+}
+
+.metadata-key {
+  font-weight: 500;
+  color: #6b5d4f;
+  flex: 0 0 40%;
+  padding-right: 1rem;
+}
+
+.metadata-value {
+  color: #3c3c3c;
+  flex: 1;
+  text-align: right;
+  word-break: break-word;
 }
 
 .format-select {

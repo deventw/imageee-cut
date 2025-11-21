@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@types/piexifjs": "^1.0.0",
+    "piexifjs": "^1.0.6",
     "pinia": "^3.0.4",
     "vue": "^3.5.24",
     "vue-i18n": "^11.1.12"
