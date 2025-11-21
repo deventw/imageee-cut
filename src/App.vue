@@ -25,12 +25,12 @@
     <!-- Side drawer overlay -->
     <div 
       class="drawer-overlay" 
-      :class="{ 'is-open': showControls }"
-      @click="showControls = false"
-      v-if="showControls"
+      :class="{ 'is-open': showControls || showExportDialog }"
+      @click="showControls = false; showExportDialog = false"
+      v-if="showControls || showExportDialog"
     ></div>
     
-    <!-- Side drawer -->
+    <!-- Crop Selection Drawer -->
     <div class="drawer" :class="{ 'is-open': showControls }">
       <div class="drawer-header">
         <h2>{{ $t('crop_selection') }}</h2>
@@ -38,6 +38,20 @@
       </div>
       <div class="drawer-content">
         <CropControls />
+      </div>
+    </div>
+    
+    <!-- Export Settings Drawer -->
+    <div class="drawer export-drawer" :class="{ 'is-open': showExportDialog }">
+      <div class="drawer-header">
+        <h2>{{ $t('export_settings') }}</h2>
+        <button class="drawer-close" @click="showExportDialog = false">✕</button>
+      </div>
+      <div class="drawer-content">
+        <ExportDialog 
+          :is-open="showExportDialog"
+          @close="showExportDialog = false" 
+        />
       </div>
     </div>
     
@@ -61,11 +75,6 @@
       </div>
     </footer>
     
-    <ExportDialog 
-      v-if="showExportDialog" 
-      :is-open="showExportDialog"
-      @close="showExportDialog = false" 
-    />
   </div>
 </template>
 
@@ -243,6 +252,11 @@ body {
   overflow: hidden;
 }
 
+.export-drawer {
+  width: 500px;
+  max-width: 90vw;
+}
+
 .drawer.is-open {
   transform: translateX(0);
 }
@@ -385,6 +399,10 @@ body {
   
   .drawer {
     width: 360px;
+  }
+  
+  .export-drawer {
+    width: 600px;
   }
   
   .bottom-toolbar-buttons {

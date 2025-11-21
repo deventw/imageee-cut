@@ -1,9 +1,5 @@
 <template>
-  <div v-if="isOpen" class="export-dialog-overlay" @click.self="close">
-    <div class="export-dialog">
-      <h2>{{ $t('export_settings') }}</h2>
-      
-      <div class="dialog-content">
+  <div class="export-content">
         <div class="control-group">
           <label>{{ $t('export_format') }}</label>
           <select 
@@ -79,7 +75,6 @@
             {{ generatingPreviews ? $t('generating_previews') : $t('generate_previews') }}
           </button>
         </div>
-      </div>
       
       <!-- Export list -->
       <div class="export-list-section">
@@ -93,22 +88,26 @@
             :key="index"
             class="export-item"
           >
+            <!-- Row 1: Preview -->
             <div class="export-item-preview">
               <div class="export-item-number">{{ index === 0 ? $t('main_crop') : `${index + 1}` }}</div>
               <img :src="item.preview" :alt="item.filename" />
             </div>
-            <div class="export-item-info">
-              <p class="export-item-label">{{ index === 0 ? $t('main_crop') : `${$t('crop')} ${index + 1}` }}</p>
-              <p class="export-item-filename">{{ item.filename }}.{{ settings.format }}</p>
-              <p class="export-item-size">{{ item.size }} px</p>
+            <!-- Row 2: Info and Download Button -->
+            <div class="export-item-bottom">
+              <div class="export-item-info">
+                <p class="export-item-label">{{ index === 0 ? $t('main_crop') : `${$t('crop')} ${index + 1}` }}</p>
+                <p class="export-item-filename">{{ item.filename }}.{{ settings.format }}</p>
+                <p class="export-item-size">{{ item.size }} px</p>
+              </div>
+              <button 
+                @click="downloadItem(item)"
+                :disabled="item.downloading"
+                class="btn-download-item"
+              >
+                {{ item.downloading ? $t('downloading') : $t('download') }}
+              </button>
             </div>
-            <button 
-              @click="downloadItem(item)"
-              :disabled="item.downloading"
-              class="btn-download-item"
-            >
-              {{ item.downloading ? $t('downloading') : $t('download') }}
-            </button>
           </div>
         </div>
         <div v-else-if="generatingPreviews" class="export-list-loading">
@@ -122,11 +121,6 @@
           <p class="hint-text">{{ $t('select_crop_area_first') }}</p>
         </div>
       </div>
-      
-      <div class="dialog-actions">
-        <button @click="close" class="btn-cancel">{{ $t('close') }}</button>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -521,10 +515,6 @@ interface ExportItem {
 const exportItems = ref<ExportItem[]>([])
 const generatingPreviews = ref(false)
 
-function close() {
-  emit('close')
-}
-
 async function generateExportItems() {
   if (!imageElement.value) {
     exportItems.value = []
@@ -775,40 +765,14 @@ watch(() => store.imageMetadata, () => {
 </script>
 
 <style scoped>
-.export-dialog-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 1rem;
-}
-
-.export-dialog {
-  background: #faf8f4;
-  border-radius: 8px;
-  padding: 1.5rem;
-  width: 100%;
-  max-width: 500px;
-  max-height: 90vh;
+.export-content {
   display: flex;
   flex-direction: column;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  border: 1px solid #d4c4b0;
-}
-
-h2 {
-  margin: 0 0 1.5rem 0;
-}
-
-.dialog-content {
-  margin-bottom: 1.5rem;
-  flex-shrink: 0;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 1rem;
 }
 
 .control-group {
@@ -1092,11 +1056,9 @@ h2 {
 }
 
 .export-list-section {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  margin-bottom: 1.5rem;
+  margin-top: 1rem;
 }
 
 .export-list-title {
@@ -1116,10 +1078,6 @@ h2 {
 }
 
 .export-list {
-  flex: 1;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  max-height: 400px;
   border: 1px solid #e8dfd4;
   border-radius: 6px;
   background: #fff;
@@ -1146,7 +1104,7 @@ h2 {
 
 .export-item {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 0.75rem;
   padding: 0.75rem;
   border-bottom: 1px solid #e8dfd4;
@@ -1186,8 +1144,8 @@ h2 {
 
 .export-item-preview {
   flex-shrink: 0;
-  width: 80px;
-  height: 80px;
+  width: 100%;
+  height: 120px;
   border: 1px solid #d4c4b0;
   border-radius: 4px;
   overflow: hidden;
@@ -1202,6 +1160,13 @@ h2 {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+.export-item-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .export-item-info {
