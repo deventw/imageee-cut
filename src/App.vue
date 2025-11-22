@@ -2,8 +2,7 @@
   <div class="app-container">
     <header class="toolbar">
       <div class="toolbar-content">
-        <span class="version-number">v{{ version }}</span>
-        <a href="https://github.com/deventw/imageee-cut" target="_blank" rel="noopener noreferrer" class="author">by deventw</a>
+      
         <LanguageToggle />
         <button @click="triggerFileInput" class="btn-import">
           {{ $t('import_image') }}
@@ -15,6 +14,8 @@
           @change="handleFileSelect"
           style="display: none"
         />
+        <span class="version-number">v{{ version }}</span>
+        <a href="https://github.com/deventw/imageee-cut" target="_blank" rel="noopener noreferrer" class="author">by deventw</a>
       </div>
     </header>
     
