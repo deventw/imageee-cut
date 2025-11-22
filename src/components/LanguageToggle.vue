@@ -1,9 +1,9 @@
 <template>
   <div class="language-toggle">
     <select :value="locale" @change="handleChange" class="language-select">
-      <option value="en_US">English</option>
-      <option value="zh_CN">简体中文</option>
-      <option value="zh_TW">繁體中文</option>
+      <option value="en_US">EN</option>
+      <option value="zh_CN">简</option>
+      <option value="zh_TW">繁</option>
     </select>
   </div>
 </template>

@@ -3,6 +3,7 @@
     <header class="toolbar">
       <div class="toolbar-content">
         <span class="version-number">v{{ version }}</span>
+        <a href="https://github.com/deventw/imageee-cut" target="_blank" rel="noopener noreferrer" class="author">by deventw</a>
         <LanguageToggle />
         <button @click="triggerFileInput" class="btn-import">
           {{ $t('import_image') }}
@@ -14,7 +15,6 @@
           @change="handleFileSelect"
           style="display: none"
         />
-        <RotationControls />
       </div>
     </header>
     
@@ -82,14 +82,13 @@
 import { ref } from 'vue'
 
 import LanguageToggle from './components/LanguageToggle.vue'
-import RotationControls from './components/RotationControls.vue'
 import ImagePreview from './components/ImagePreview.vue'
 import CropControls from './components/CropControls.vue'
 import ExportDialog from './components/ExportDialog.vue'
 import { useImageEditor } from './composables/useImageEditor'
 import { useI18n } from './composables/useI18n'
 
-const version = '1.0.2'
+const version = '1.0.3'
 const { hasImage, loadImage } = useImageEditor()
 const { $t } = useI18n()
 const showExportDialog = ref(false)
@@ -173,6 +172,32 @@ body {
   white-space: nowrap;
   flex-shrink: 0;
   border: 1px solid #d4c4b0;
+}
+
+.author {
+  font-size: 0.75rem;
+  color: #6b5d4f;
+  font-weight: 500;
+  padding: 0.5rem 0.75rem;
+  background: #f0ebe3;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  border: 1px solid #d4c4b0;
+  text-decoration: none;
+  display: inline-block;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.author:hover {
+  background: #e8dfd4;
+  color: #5a4d3f;
+  border-color: #b8a99a;
+}
+
+.author:active {
+  background: #d4c4b0;
 }
 
 .btn-import {
