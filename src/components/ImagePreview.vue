@@ -599,11 +599,27 @@ function handleMouseMove(e: MouseEvent) {
   
   // Update cursor based on state
   if (isDrawing.value) {
-    // During drag, show grabbing cursor
+    // During drag, show grabbing cursor if moving, resize cursor if resizing, otherwise crosshair for new crop
     if (canvasRef.value) {
-      canvasRef.value.style.cursor = 'grabbing'
+      // Check if we're resizing (handle exists) or creating new crop
+      const handle = cropRect.value ? getResizeHandle(coords.x, coords.y, cropRect.value) : null
+      if (handle) {
+        const cursorMap: Record<string, string> = {
+          'nw': 'nw-resize',
+          'ne': 'ne-resize',
+          'sw': 'sw-resize',
+          'se': 'se-resize',
+          'n': 'n-resize',
+          's': 's-resize',
+          'e': 'e-resize',
+          'w': 'w-resize'
+        }
+        canvasRef.value.style.cursor = cursorMap[handle] || 'grabbing'
+      } else {
+        canvasRef.value.style.cursor = 'grabbing'
+      }
     }
-    // Handle drawing/moving crop
+    // Handle drawing/moving/resizing crop
     updateCrop(coords.x, coords.y, displayImage.width, displayImage.height)
     scheduleDraw()
   } else if (cropRect.value) {
@@ -628,11 +644,11 @@ function handleMouseMove(e: MouseEvent) {
       const isInside = coords.x >= rect.x && coords.x <= rect.x + rect.width &&
                        coords.y >= rect.y && coords.y <= rect.y + rect.height
       if (canvasRef.value) {
-        canvasRef.value.style.cursor = isInside ? 'move' : 'crosshair'
+        canvasRef.value.style.cursor = isInside ? 'move' : 'default'
       }
     }
   } else {
-    // No crop, show crosshair
+    // No crop, show crosshair to indicate new crop can be created
     if (canvasRef.value) {
       canvasRef.value.style.cursor = 'crosshair'
     }

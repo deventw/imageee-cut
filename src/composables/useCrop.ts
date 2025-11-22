@@ -186,9 +186,13 @@ export function useCrop() {
         store.setIsDrawing(true)
         return
       }
+      
+      // If clicking outside existing crop, don't allow creating a new one
+      // Crop stays in place - user must use "Clear Crop" button to remove it
+      return
     }
     
-    // Start creating new crop
+    // Start creating new crop (only if no existing crop)
     isMoving = false
     moveOffset = null
     resizeHandle = null
