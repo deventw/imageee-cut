@@ -1,21 +1,31 @@
 <template>
   <div class="app-container">
-    <header class="toolbar">
-      <div class="toolbar-content">
-      
-        <LanguageToggle />
-        <button @click="triggerFileInput" class="btn-import">
-          {{ $t('import_image') }}
-        </button>
-        <input 
-          ref="fileInputRef"
-          type="file" 
-          accept="image/*" 
-          @change="handleFileSelect"
-          style="display: none"
-        />
-        <span class="version-number">v{{ version }}</span>
-        <a href="https://github.com/deventw/imageee-cut" target="_blank" rel="noopener noreferrer" class="author">by deventw</a>
+    <header class="header">
+      <div class="app-branding" :data-locale="store.locale">
+        <h1 class="app-title">{{ $t('app_title') }}</h1>
+        <p class="app-slogan">{{ $t('app_slogan') }}</p>
+      </div>
+      <div class="toolbar">
+        <div class="toolbar-main">
+          <div class="toolbar-left">
+            <LanguageToggle />
+            <button @click="triggerFileInput" class="btn-import">
+              {{ $t('import_image') }}
+            </button>
+            <input 
+              ref="fileInputRef"
+              type="file" 
+              accept="image/*" 
+              @change="handleFileSelect"
+              style="display: none"
+            />
+          </div>
+          <a href="https://github.com/deventw/imageee-cut" target="_blank" rel="noopener noreferrer" class="meta-info">
+            <span class="version">v{{ version }}</span>
+            <span class="separator">·</span>
+            <span class="author">deventw</span>
+          </a>
+        </div>
       </div>
     </header>
     
@@ -88,10 +98,12 @@ import CropControls from './components/CropControls.vue'
 import ExportDialog from './components/ExportDialog.vue'
 import { useImageEditor } from './composables/useImageEditor'
 import { useI18n } from './composables/useI18n'
+import { useEditorStore } from './stores/editorStore'
 
 const version = '1.0.3'
 const { hasImage, loadImage } = useImageEditor()
 const { $t } = useI18n()
+const store = useEditorStore()
 const showExportDialog = ref(false)
 const showControls = ref(false)
 const fileInputRef = ref<HTMLInputElement>()
@@ -139,87 +151,124 @@ body {
   min-height: 0;
 }
 
-.toolbar {
-  padding: 0.5rem;
+.header {
   background: #faf8f4;
-  border-bottom: 1px solid #d4c4b0;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  border-bottom: 1px solid rgba(212, 196, 176, 0.25);
   z-index: 10;
   flex-shrink: 0;
 }
 
-.toolbar-content {
+.app-branding {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0.375rem 1rem 0.25rem;
+  border-bottom: 1px solid rgba(212, 196, 176, 0.15);
+}
+
+.toolbar {
+  padding: 0.375rem 1rem;
+}
+
+.toolbar-main {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  justify-content: space-between;
+  gap: 0.75rem;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
-.toolbar-content::-webkit-scrollbar {
-  display: none;
-}
-
-.version-number {
-  font-size: 0.75rem;
-  color: #6b5d4f;
-  font-weight: 500;
-  padding: 0.5rem 0.75rem;
-  background: #f0ebe3;
-  border-radius: 4px;
-  white-space: nowrap;
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
   flex-shrink: 0;
-  border: 1px solid #d4c4b0;
 }
 
-.author {
-  font-size: 0.75rem;
-  color: #6b5d4f;
-  font-weight: 500;
-  padding: 0.5rem 0.75rem;
-  background: #f0ebe3;
-  border-radius: 4px;
-  white-space: nowrap;
-  flex-shrink: 0;
-  border: 1px solid #d4c4b0;
-  text-decoration: none;
-  display: inline-block;
-  transition: all 0.2s;
-  cursor: pointer;
-}
-
-.author:hover {
-  background: #e8dfd4;
+.app-title {
+  font-size: 0.85rem;
+  font-weight: 400;
   color: #5a4d3f;
-  border-color: #b8a99a;
+  letter-spacing: 0.06em;
+  margin: 0;
+  white-space: nowrap;
+  line-height: 1.4;
 }
 
-.author:active {
-  background: #d4c4b0;
+.app-slogan {
+  font-size: 0.65rem;
+  font-weight: 300;
+  color: #8b7d6f;
+  letter-spacing: 0.02em;
+  margin: 0;
+  white-space: nowrap;
+  line-height: 1.3;
+  opacity: 0.75;
+}
+
+
+.meta-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.625rem;
+  color: #8b7d6f;
+  text-decoration: none;
+  padding: 0.2rem 0;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.meta-info:hover {
+  color: #5a4d3f;
+  opacity: 1;
+}
+
+.meta-info .version {
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+.meta-info .separator {
+  color: #b8a99a;
+  font-weight: 300;
+  opacity: 0.6;
+}
+
+.meta-info .author {
+  font-weight: 400;
+  color: inherit;
 }
 
 .btn-import {
-  padding: 0.75rem 1rem;
-  border: 1px solid #8b6f47;
-  border-radius: 6px;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid rgba(139, 111, 71, 0.3);
+  border-radius: 4px;
   background: #a67c52;
   color: #faf8f4;
   cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 500;
-  transition: all 0.2s;
-  min-height: 44px;
+  font-size: 0.75rem;
+  font-weight: 400;
+  transition: all 0.2s ease;
+  min-height: 28px;
   touch-action: manipulation;
   white-space: nowrap;
   flex-shrink: 0;
+  letter-spacing: 0.02em;
+}
+
+.btn-import:hover {
+  background: #9a7148;
+  border-color: rgba(139, 111, 71, 0.5);
 }
 
 .btn-import:active {
   background: #8b6f47;
-  border-color: #6b5638;
+  border-color: rgba(139, 111, 71, 0.6);
 }
 
 .editor-area {
@@ -409,18 +458,42 @@ body {
 }
 
 @media (min-width: 768px) {
-  .toolbar {
-    padding: 0.75rem 1rem;
+  .app-branding {
+    padding: 0.375rem 1.5rem 0.25rem;
+    gap: 0.375rem;
   }
   
-  .toolbar-content {
+  .toolbar {
+    padding: 0.375rem 1.5rem;
+  }
+  
+  .toolbar-main {
     gap: 0.75rem;
-    justify-content: flex-start;
+  }
+  
+  .app-title {
+    font-size: 0.85rem;
+    letter-spacing: 0.06em;
+  }
+  
+  .app-slogan {
+    font-size: 0.65rem;
   }
   
   .btn-import {
-    padding: 0.875rem 1.25rem;
-    font-size: 0.95rem;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.75rem;
+    min-height: 28px;
+  }
+  
+  .meta-info {
+    font-size: 0.625rem;
+  }
+  
+  .language-select {
+    padding: 0.4rem 0.5rem;
+    font-size: 0.7rem;
+    min-height: 28px;
   }
   
   .drawer {

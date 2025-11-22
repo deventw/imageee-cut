@@ -42,7 +42,7 @@
       v-model="settings.includeMetadata" 
       :disabled="!metadataOptionEnabled"
     />
-    Include metadata (PNG/JPEG only)
+    {{ $t('include_metadata') }}
   </label>
   <p class="metadata-hint" :class="{ enabled: metadataOptionEnabled }">
     {{ metadataHint }}
@@ -475,33 +475,33 @@ const metadataOptionEnabled = computed(() => {
 
 const metadataHint = computed(() => {
   if (settings.value.format === 'webp') {
-    return 'Metadata is only available when exporting PNG or JPEG files.'
+    return $t('metadata_hint_webp')
   }
   
   if (!store.imageMetadata) {
-    return 'Load a PNG or JPEG that already has metadata to enable this option.'
+    return $t('metadata_hint_no_metadata')
   }
   
   if (settings.value.format === 'jpg') {
     if (store.imageMetadata.format !== 'jpeg') {
-      return 'Metadata can only be kept when exporting as JPEG from an original JPEG.'
+      return $t('metadata_hint_jpeg_format_mismatch')
     }
     if (!store.imageMetadata.jpegExif && 
         (!store.imageMetadata.jpegSegments || store.imageMetadata.jpegSegments.length === 0)) {
-      return 'This JPEG does not contain metadata to keep.'
+      return $t('metadata_hint_jpeg_no_metadata')
     }
   }
   
   if (settings.value.format === 'png') {
     if (store.imageMetadata.format !== 'png') {
-      return 'Metadata can only be kept when exporting as PNG from an original PNG.'
+      return $t('metadata_hint_png_format_mismatch')
     }
     if (!store.imageMetadata.pngChunks || store.imageMetadata.pngChunks.length === 0) {
-      return 'This PNG does not contain metadata to keep.'
+      return $t('metadata_hint_png_no_metadata')
     }
   }
   
-  return 'Keeps the metadata from the original PNG/JPEG image.'
+  return $t('metadata_hint_keep_metadata')
 })
 
 interface ExportItem {

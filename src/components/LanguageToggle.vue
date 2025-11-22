@@ -29,26 +29,34 @@ function handleChange(e: Event) {
 }
 
 .language-select {
-  padding: 0.75rem 0.875rem;
-  border: 1px solid #d4c4b0;
-  border-radius: 6px;
-  background: #faf8f4;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid rgba(212, 196, 176, 0.3);
+  border-radius: 4px;
+  background: transparent;
   cursor: pointer;
-  font-size: 0.9rem;
-  min-height: 44px;
+  font-size: 0.7rem;
+  min-height: 28px;
   touch-action: manipulation;
-  color: #3c3c3c;
+  color: #6b5d4f;
   flex-shrink: 0;
   white-space: nowrap;
+  transition: all 0.2s ease;
+  font-weight: 400;
+}
+
+.language-select:hover {
+  background: rgba(240, 235, 227, 0.3);
+  border-color: rgba(212, 196, 176, 0.6);
 }
 
 .language-select:focus {
-  outline: 2px solid #a67c52;
-  outline-offset: 2px;
+  outline: 1px solid rgba(166, 124, 82, 0.4);
+  outline-offset: 1px;
+  background: rgba(240, 235, 227, 0.3);
 }
 
 .language-select:active {
-  border-color: #b8a99a;
+  border-color: rgba(184, 169, 154, 0.6);
 }
 </style>
 
